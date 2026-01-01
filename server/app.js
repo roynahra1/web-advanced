@@ -8,11 +8,14 @@ app.use(express.json({ limit: "10000" }));
 app.use(cors());
 
 const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "appointment",
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT
 });
+
+
 
 function isValidEmail(email) {
   const regex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -265,6 +268,5 @@ db.connect((err) => {
   else console.log("Connected to MySQL database");
 });
 
-app.listen(3001, () => {
-  console.log("Server running on port 3001...");
-});
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}...`));
