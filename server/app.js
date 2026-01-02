@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const mysql = require("mysql2");
 const bcrypt = require("bcrypt");
@@ -28,7 +29,6 @@ app.use(cors({
   credentials: true
 }));
 
-app.options("*", cors()); // respond to OPTIONS requests for all routes
 
 
 /* ======================
