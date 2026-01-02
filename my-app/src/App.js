@@ -1,3 +1,4 @@
+import api from "./api";
 import React, { useState, useEffect } from "react";
 import {
   HashRouter,
@@ -78,7 +79,7 @@ export default function App() {
     const fetchDoctors = async () => {
       try {
         // Update this to your Render backend URL
-        const result = await axios.get("https://web-advanced-3aq6.onrender.com/doctors");
+        const result = await api.get("https://web-advanced-3aq6.onrender.com/doctors");
         if (result.status === 200) {
           console.log(result.data);
           setDoctors(result.data);

@@ -2,271 +2,146 @@ const express = require("express");
 const mysql = require("mysql2");
 const bcrypt = require("bcrypt");
 const cors = require("cors");
+
 const app = express();
 
-app.use(express.json({ limit: "10000" }));
-app.use(cors());
+/* ======================
+   MIDDLEWARE
+====================== */
+app.use(express.json());
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://tubular-nasturtium-304615.netlify.app"
+];
+
+app.use(cors({
+  origin: function(origin, callback){
+    if(!origin) return callback(null, true); // allow server-to-server requests
+    if(allowedOrigins.indexOf(origin) === -1){
+      const msg = `The CORS policy for this site does not allow access from the specified Origin.`;
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true
+}));
+
+
+/* ======================
+   DATABASE
+====================== */
 const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
-  port: process.env.DB_PORT
+  host: process.env.MYSQLHOST,
+  user: process.env.MYSQLUSER,
+  password: process.env.MYSQLPASSWORD,
+  database: process.env.MYSQLDATABASE,
+  port: process.env.MYSQLPORT,
 });
 
+db.connect(err => {
+  if (err) {
+    console.error("❌ MySQL connection failed:", err);
+  } else {
+    console.log("✅ Connected to MySQL");
+  }
+});
 
-
+/* ======================
+   HELPERS
+====================== */
 function isValidEmail(email) {
-  const regex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  return regex.test(email);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+/* ======================
+   ROUTES (WITH /api)
+====================== */
+
 // REGISTER
-app.post("/register", async (req, res) => {
+app.post("/api/register", async (req, res) => {
   const { email, password, firstName, lastName } = req.body;
   if (!email || !password || !firstName || !lastName)
-    return res.status(400).json({ message: "All Data Required" });
+    return res.status(400).json({ message: "All data required" });
 
   if (!isValidEmail(email))
-    return res.status(400).json({ message: "Wrong Email Format" });
+    return res.status(400).json({ message: "Invalid email" });
 
-  db.query("SELECT id FROM users WHERE email = ?", [email], (err, results) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    if (results.length > 0)
-      return res
-        .status(400)
-        .json({ exists: true, message: "Email already exists" });
+  db.query("SELECT id FROM users WHERE email = ?", [email], async (err, rows) => {
+    if (rows?.length) return res.status(400).json({ message: "Email exists" });
 
-    bcrypt.hash(password, 10, (err, hashedPassword) => {
-      if (err) return res.status(500).json({ message: "Hashing error" });
-
-      const sql =
-        "INSERT INTO users (first_name, last_name, email, password) VALUES (?, ?, ?, ?)";
-      db.query(
-        sql,
-        [firstName, lastName, email, hashedPassword],
-        (err, result) => {
-          if (err) return res.status(500).json({ message: "Database error" });
-          res.json({
-            message: "User added successfully",
-            userId: result.insertId,
-          });
-        }
-      );
-    });
+    const hashed = await bcrypt.hash(password, 10);
+    db.query(
+      "INSERT INTO users (first_name,last_name,email,password) VALUES (?,?,?,?)",
+      [firstName, lastName, email, hashed],
+      () => res.json({ message: "User registered" })
+    );
   });
 });
 
 // LOGIN
-app.post("/login", (req, res) => {
+app.post("/api/login", (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password)
-    return res.status(400).json({ message: "Email and password required" });
 
-  const sql = "SELECT * FROM users WHERE email = ?";
-  db.query(sql, [email], async (err, results) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    if (results.length === 0)
-      return res.status(404).json({ message: "Invalid Email or Password" });
+  db.query("SELECT * FROM users WHERE email = ?", [email], async (err, rows) => {
+    if (!rows.length)
+      return res.status(401).json({ message: "Invalid credentials" });
 
-    const user = results[0];
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(401).json({ message: "Invalid Email or Password" });
+    const user = rows[0];
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok)
+      return res.status(401).json({ message: "Invalid credentials" });
 
     res.json({
-      message: "Login successful",
+      message: "Login success",
       user: {
         id: user.id,
         firstName: user.first_name,
         lastName: user.last_name,
-        email: user.email,
-      },
+        email: user.email
+      }
     });
   });
 });
 
-// UPDATE APPOINTMENT
-app.put("/appointments/:id", (req, res) => {
-  const { id } = req.params;
+// DOCTORS
+app.get("/api/doctors", (req, res) => {
+  db.query("SELECT * FROM doctors", (err, rows) => res.json(rows));
+});
+
+app.post("/api/doctors", (req, res) => {
+  const name = req.body.name.startsWith("Dr") ? req.body.name : `Dr. ${req.body.name}`;
+  db.query(
+    "INSERT INTO doctors (name, role) VALUES (?,?)",
+    [name, req.body.role],
+    () => res.json({ message: "Doctor added" })
+  );
+});
+
+// APPOINTMENTS
+app.get("/api/appointments", (req, res) => {
+  db.query(
+    `SELECT a.*, d.name AS doctor_name, d.role AS doctor_role
+     FROM appointments a
+     JOIN doctors d ON a.doctor_id = d.id`,
+    (err, rows) => res.json(rows)
+  );
+});
+
+app.post("/api/appointments", (req, res) => {
   const { date, time, patient_name, doctor_id } = req.body;
-  
-  if (!date || !time || !patient_name || !doctor_id)
-    return res.status(400).json({ message: "All fields are required" });
-
-  const cleanDate = date.split('T')[0];
-
-  const checkSql = `
-    SELECT id FROM appointments 
-    WHERE date = ? AND time = ? AND doctor_id = ? AND id != ?
-  `;
-  
-  db.query(checkSql, [cleanDate, time, doctor_id, id], (err, results) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    
-    if (results.length > 0) {
-      return res.status(400).json({ 
-        message: "Time slot already booked for this doctor" 
-      });
-    }
-
-    const updateSql = "UPDATE appointments SET date = ?, time = ?, patient_name = ?, doctor_id = ? WHERE id = ?";
-    db.query(updateSql, [cleanDate, time, patient_name, doctor_id, id], (err, result) => {
-      if (err) return res.status(500).json({ message: "Database error" });
-      if (result.affectedRows === 0)
-        return res.status(404).json({ message: "Appointment not found" });
-      res.json({ message: "Appointment updated successfully" });
-    });
-  });
+  db.query(
+    "INSERT INTO appointments (date,time,patient_name,doctor_id) VALUES (?,?,?,?)",
+    [date.split("T")[0], time, patient_name, doctor_id],
+    () => res.json({ message: "Appointment added" })
+  );
 });
 
-// ADD DOCTOR
-app.post("/doctors", (req, res) => {
-  const { name, role } = req.body;
-  if (!name || !role)
-    return res.status(400).json({ message: "Name and role are required" });
-
-  // Format name: add Dr. if not already there
-  let doctorName = name.trim();
-  if (!doctorName.toLowerCase().startsWith("dr") && !doctorName.toLowerCase().startsWith("dr.")) {
-    doctorName = "Dr. " + doctorName;
-  }
-
-  const sql = "INSERT INTO doctors (name, role) VALUES (?, ?)";
-  db.query(sql, [doctorName, role], (err, result) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    res.json({
-      message: "Doctor added successfully",
-      doctorId: result.insertId,
-    });
-  });
-});
-
-// GET DOCTORS
-app.get("/doctors", (req, res) => {
-  db.query("SELECT * FROM doctors", (err, results) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    res.json(results);
-  });
-});
-
-// DELETE DOCTOR (with appointment check)
-app.delete("/doctors/:id", (req, res) => {
-  const { id } = req.params;
-  
-  const checkSql = "SELECT id FROM appointments WHERE doctor_id = ?";
-  db.query(checkSql, [id], (err, results) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    
-    if (results.length > 0) {
-      return res.status(400).json({ 
-        message: "Cannot delete doctor with existing appointments" 
-      });
-    }
-    
-    const deleteSql = "DELETE FROM doctors WHERE id = ?";
-    db.query(deleteSql, [id], (err, result) => {
-      if (err) return res.status(500).json({ message: "Database error" });
-      if (result.affectedRows === 0)
-        return res.status(404).json({ message: "Doctor not found" });
-      res.json({ message: "Doctor deleted successfully" });
-    });
-  });
-});
-
-// UPDATE DOCTOR
-app.put("/doctors", (req, res) => {
-  const { doctorId, name, role } = req.body;
-  
-  if (!doctorId || !name || !role)
-    return res.status(400).json({ message: "Doctor ID, name and role are required" });
-
-  // Format name: add Dr. if not already there
-  let doctorName = name.trim();
-  if (!doctorName.toLowerCase().startsWith("dr") && !doctorName.toLowerCase().startsWith("dr.")) {
-    doctorName = "Dr. " + doctorName;
-  }
-
-  const sql = "UPDATE doctors SET name = ?, role = ? WHERE id = ?";
-  db.query(sql, [doctorName, role, doctorId], (err, result) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    if (result.affectedRows === 0)
-      return res.status(404).json({ message: "Doctor not found" });
-    res.json({ message: "Doctor updated successfully" });
-  });
-});
-
-// ADD APPOINTMENT
-app.post("/appointments", (req, res) => {
-  const { date, time, patient_name, doctor_id } = req.body;
-  if (!date || !time || !patient_name || !doctor_id)
-    return res.status(400).json({ message: "All fields are required" });
-
-  const cleanDate = date.split('T')[0];
-
-  const checkSql = `
-    SELECT id FROM appointments 
-    WHERE date = ? AND time = ? AND doctor_id = ?
-  `;
-  
-  db.query(checkSql, [cleanDate, time, doctor_id], (err, results) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    
-    if (results.length > 0) {
-      return res.status(400).json({ 
-        message: "Time slot already booked for this doctor" 
-      });
-    }
-
-    const insertSql = "INSERT INTO appointments (date, time, patient_name, doctor_id) VALUES (?, ?, ?, ?)";
-    db.query(insertSql, [cleanDate, time, patient_name, doctor_id], (err, result) => {
-      if (err) return res.status(500).json({ message: "Database error" });
-      res.json({
-        message: "Appointment added successfully",
-        appointmentId: result.insertId,
-      });
-    });
-  });
-});
-
-// GET APPOINTMENTS
-app.get("/appointments", (req, res) => {
-  const sql = `
-    SELECT 
-      appointments.id,
-      DATE_FORMAT(appointments.date, '%Y-%m-%d') as date,
-      appointments.time,
-      appointments.patient_name,
-      doctors.name AS doctor_name,
-      doctors.role AS doctor_role,
-      appointments.doctor_id
-    FROM appointments
-    JOIN doctors ON appointments.doctor_id = doctors.id
-  `;
-  db.query(sql, (err, results) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    res.json(results);
-  });
-});
-
-// DELETE APPOINTMENT
-app.delete("/appointments/:id", (req, res) => {
-  const { id } = req.params;
-  const sql = "DELETE FROM appointments WHERE id = ?";
-  db.query(sql, [id], (err, result) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    if (result.affectedRows === 0)
-      return res.status(404).json({ message: "Appointment not found" });
-    res.json({ message: "Appointment deleted successfully" });
-  });
-});
-
-// START SERVER
-db.connect((err) => {
-  if (err) console.log("Database connection failed:", err);
-  else console.log("Connected to MySQL database");
-});
-
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}...`));
+/* ======================
+   SERVER
+====================== */
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () =>
+  console.log(`🚀 Server running on port ${PORT}`)
+);

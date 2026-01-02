@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import api from "../api";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -15,18 +16,18 @@ export default function RegisterPage() {
   const handleRegister = async (e) => {
     e.preventDefault();
     setError("");
-    
+
     // Frontend validation
     if (password !== confirmPassword) {
       setError("Passwords do not match!");
       return;
     }
-    
+
     if (password.length < 6) {
       setError("Password must be at least 6 characters");
       return;
     }
-    
+
     if (!firstName.trim() || !lastName.trim()) {
       setError("First name and last name are required");
       return;
@@ -35,49 +36,39 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      // Send to backend
-      const response = await fetch("http://localhost:3001/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          firstName,
-          lastName,
-          email,
-          password
-        }),
+      // ✅ Axios call
+      const data = await api.post("/register", {
+        firstName,
+        lastName,
+        email,
+        password,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Handle error from backend
-        if (data.exists) {
-          setError("Email already exists. Try another email or login.");
-        } else {
-          setError(data.message || "Registration failed");
-        }
-        return;
-      }
-
-      // Registration successful
       console.log("Registration successful:", data);
+
       alert("Registration successful! You can now login.");
-      
+
       // Clear form
       setFirstName("");
       setLastName("");
       setEmail("");
       setPassword("");
       setConfirmPassword("");
-      
-      // Redirect to login page
-      navigate("/login");
 
+      // Redirect
+      navigate("/login");
     } catch (err) {
       console.error("Registration error:", err);
-      setError("Network error. Please try again.");
+
+      // Backend error handling
+      if (err.response && err.response.data) {
+        setError(
+          err.response.data.message ||
+          "Registration failed. Please try again."
+        );
+      } else {
+        setError("Network error. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -86,15 +77,17 @@ export default function RegisterPage() {
   return (
     <div style={{ padding: "40px", maxWidth: "400px", margin: "auto" }}>
       <h2>Register</h2>
-      
+
       {error && (
-        <div style={{ 
-          color: "red", 
-          backgroundColor: "#ffe6e6",
-          padding: "10px",
-          marginBottom: "10px",
-          borderRadius: "5px"
-        }}>
+        <div
+          style={{
+            color: "red",
+            backgroundColor: "#ffe6e6",
+            padding: "10px",
+            marginBottom: "10px",
+            borderRadius: "5px",
+          }}
+        >
           {error}
         </div>
       )}
@@ -105,14 +98,9 @@ export default function RegisterPage() {
           placeholder="First Name"
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
-          required
           disabled={loading}
-          style={{ 
-            width: "100%", 
-            padding: 10, 
-            marginBottom: 10,
-            border: "1px solid #ccc"
-          }}
+          required
+          style={{ width: "100%", padding: 10, marginBottom: 10 }}
         />
 
         <input
@@ -120,14 +108,9 @@ export default function RegisterPage() {
           placeholder="Last Name"
           value={lastName}
           onChange={(e) => setLastName(e.target.value)}
-          required
           disabled={loading}
-          style={{ 
-            width: "100%", 
-            padding: 10, 
-            marginBottom: 10,
-            border: "1px solid #ccc"
-          }}
+          required
+          style={{ width: "100%", padding: 10, marginBottom: 10 }}
         />
 
         <input
@@ -135,14 +118,9 @@ export default function RegisterPage() {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          required
           disabled={loading}
-          style={{ 
-            width: "100%", 
-            padding: 10, 
-            marginBottom: 10,
-            border: "1px solid #ccc"
-          }}
+          required
+          style={{ width: "100%", padding: 10, marginBottom: 10 }}
         />
 
         <input
@@ -150,14 +128,9 @@ export default function RegisterPage() {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          required
           disabled={loading}
-          style={{ 
-            width: "100%", 
-            padding: 10, 
-            marginBottom: 10,
-            border: "1px solid #ccc"
-          }}
+          required
+          style={{ width: "100%", padding: 10, marginBottom: 10 }}
         />
 
         <input
@@ -165,25 +138,20 @@ export default function RegisterPage() {
           placeholder="Confirm Password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          required
           disabled={loading}
-          style={{ 
-            width: "100%", 
-            padding: 10, 
-            marginBottom: 10,
-            border: "1px solid #ccc"
-          }}
+          required
+          style={{ width: "100%", padding: 10, marginBottom: 10 }}
         />
 
-        <button 
+        <button
           disabled={loading}
-          style={{ 
-            width: "100%", 
-            padding: 10, 
+          style={{
+            width: "100%",
+            padding: 10,
             backgroundColor: loading ? "#ccc" : "#28a745",
             color: "white",
             border: "none",
-            cursor: loading ? "not-allowed" : "pointer"
+            cursor: loading ? "not-allowed" : "pointer",
           }}
         >
           {loading ? "Registering..." : "Register"}
