@@ -12,13 +12,15 @@ app.use(cors());
 // ======================
 // DATABASE CONNECTION
 // ======================
-const db = mysql.createConnection({
-  host: process.env.MYSQLHOST || "localhost",
-  user: process.env.MYSQLUSER || "root",
-  password: process.env.MYSQLPASSWORD || "",
-  database: process.env.MYSQLDATABASE || "appointment",
-  port: process.env.MYSQLPORT || 3306,
-});
+
+const db = mysql.createConnection({ 
+  host: process.env.MYSQLHOST,
+   user: process.env.MYSQLUSER,
+    password: process.env.MYSQLPASSWORD,
+     database: process.env.MYSQLDATABASE,
+      port: process.env.MYSQLPORT,
+    
+    });
 
 db.connect((err) => {
   if (err) console.log("❌ Database connection failed:", err);
