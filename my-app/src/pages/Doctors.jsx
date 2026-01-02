@@ -23,13 +23,28 @@ export default function Doctors() {
     "Orthopedic",
   ];
 
-  // Load doctors
+  // Load doctors on mount
   useEffect(() => {
     getDoctors();
   }, []);
 
-  // Filter doctors
+  // Update filteredDoctors whenever doctors/search/filter changes
   useEffect(() => {
+    filterDoctors();
+  }, [doctors, searchTerm, filterRole]);
+
+  const getDoctors = async () => {
+    try {
+      const data = await api.get("/doctors");
+      setDoctors(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error fetching doctors:", err);
+      setDoctors([]);
+      setError("Failed to load doctors.");
+    }
+  };
+
+  const filterDoctors = () => {
     let filtered = [...doctors];
 
     if (searchTerm.trim()) {
@@ -45,17 +60,6 @@ export default function Doctors() {
     }
 
     setFilteredDoctors(filtered);
-  }, [doctors, searchTerm, filterRole]);
-
-  // Get doctors
-  const getDoctors = async () => {
-    try {
-      const data = await api.get("/doctors");
-      setDoctors(data);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to load doctors.");
-    }
   };
 
   const displayAddForm = () => {
@@ -67,11 +71,17 @@ export default function Doctors() {
   };
 
   const cancelAdd = () => {
-    setShowAddForm(false);
     setDoctorId(0);
+    setShowAddForm(false);
     setName("");
     setRole("General");
     setError("");
+  };
+
+  const formatDoctorName = (value) => {
+    let n = value.trim();
+    if (!n.toLowerCase().startsWith("dr")) n = "Dr. " + n;
+    return n;
   };
 
   const save = () => {
@@ -87,33 +97,28 @@ export default function Doctors() {
     doctorId === 0 ? addDoctor() : updateDoctor();
   };
 
-  const formatDoctorName = (value) => {
-    let n = value.trim();
-    if (!n.toLowerCase().startsWith("dr")) {
-      n = "Dr. " + n;
-    }
-    return n;
-  };
-
-  // Add doctor
+  // ------------------ ADD DOCTOR ------------------
   const addDoctor = async () => {
     setLoading(true);
     try {
-      await api.post("/doctors", {
-        name: formatDoctorName(name),
-        role,
-      });
-      await getDoctors();
+      const newDoctor = { name: formatDoctorName(name), role };
+      const createdDoctor = await api.post("/doctors", newDoctor); // returns {id, name, role}
+
+      // Update state immediately
+      setDoctors((prev) => [...prev, createdDoctor]);
+
       cancelAdd();
     } catch (err) {
-      console.error(err);
-      setError("Failed to add doctor.");
+      console.error("Error adding doctor:", err);
+      setError(
+        "Failed to add doctor. Make sure your backend is running and endpoint is correct."
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // Edit
+  // ------------------ EDIT DOCTOR ------------------
   const editDoctor = (doctor) => {
     setShowAddForm(true);
     setDoctorId(doctor.id);
@@ -122,34 +127,37 @@ export default function Doctors() {
     setError("");
   };
 
-  // Update
+  // ------------------ UPDATE DOCTOR ------------------
   const updateDoctor = async () => {
     setLoading(true);
     try {
-      await api.put("/doctors", {
-        doctorId,
-        name: formatDoctorName(name),
-        role,
-      });
-      await getDoctors();
+      const updatedDoctor = { doctorId, name: formatDoctorName(name), role };
+      await api.put("/doctors", updatedDoctor);
+
+      // Update local state immediately
+      setDoctors((prev) =>
+        prev.map((d) =>
+          d.id === doctorId ? { ...d, name: updatedDoctor.name, role } : d
+        )
+      );
+
       cancelAdd();
     } catch (err) {
-      console.error(err);
+      console.error("Error updating doctor:", err);
       setError("Failed to update doctor.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Delete
+  // ------------------ DELETE DOCTOR ------------------
   const deleteDoctor = async (doctor) => {
     if (!window.confirm("Delete this doctor?")) return;
-
     try {
       await api.delete(`/doctors/${doctor.id}`);
       setDoctors((prev) => prev.filter((d) => d.id !== doctor.id));
     } catch (err) {
-      console.error(err);
+      console.error("Error deleting doctor:", err);
       setError("Failed to delete doctor.");
     }
   };
@@ -158,11 +166,7 @@ export default function Doctors() {
     <div>
       <h1 align="center">Doctors Management</h1>
 
-      {error && (
-        <div style={{ color: "red", textAlign: "center", marginBottom: 15 }}>
-          {error}
-        </div>
-      )}
+      {error && <div style={{ color: "red", textAlign: "center" }}>{error}</div>}
 
       <div style={{ textAlign: "center", marginBottom: 20 }}>
         <button onClick={displayAddForm}>Add New Doctor</button>
@@ -170,18 +174,19 @@ export default function Doctors() {
 
       <div style={{ textAlign: "center", marginBottom: 10 }}>
         <input
-          placeholder="Search..."
+          placeholder="Search by name or specialty..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
-
         <select
           value={filterRole}
           onChange={(e) => setFilterRole(e.target.value)}
         >
           <option value="All">All</option>
           {roles.map((r) => (
-            <option key={r}>{r}</option>
+            <option key={r} value={r}>
+              {r}
+            </option>
           ))}
         </select>
       </div>
@@ -199,7 +204,9 @@ export default function Doctors() {
           {filteredDoctors.length === 0 ? (
             <tr>
               <td colSpan="4" align="center">
-                No doctors found
+                {doctors.length === 0
+                  ? "No doctors found. Add your first doctor!"
+                  : "No doctors match your criteria."}
               </td>
             </tr>
           ) : (
@@ -228,14 +235,14 @@ export default function Doctors() {
           />
           <select value={role} onChange={(e) => setRole(e.target.value)}>
             {roles.map((r) => (
-              <option key={r}>{r}</option>
+              <option key={r} value={r}>
+                {r}
+              </option>
             ))}
           </select>
           <br />
           <button onClick={cancelAdd}>Cancel</button>
-          <button onClick={save} disabled={loading}>
-            {loading ? "Saving..." : "Save"}
-          </button>
+          <button onClick={save}>{loading ? "Saving..." : "Save"}</button>
         </div>
       )}
     </div>

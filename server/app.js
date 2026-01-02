@@ -105,65 +105,69 @@ app.post("/api/login", (req, res) => {
   });
 });
 
-// DOCTORS
+// ------------------ GET DOCTORS ------------------
+// GET all doctors
 app.get("/api/doctors", (req, res) => {
-  db.query("SELECT * FROM doctors", (err, rows) => res.json(rows));
-});
-
-app.post("/api/doctors", (req, res) => {
-  const name = req.body.name.startsWith("Dr") ? req.body.name : `Dr. ${req.body.name}`;
-  db.query(
-    "INSERT INTO doctors (name, role) VALUES (?,?)",
-    [name, req.body.role],
-    () => res.json({ message: "Doctor added" })
-  );
-});
-
-// UPDATE DOCTOR
-app.put("/api/doctors", (req, res) => {
-  const { doctorId, name, role } = req.body;
-  
-  if (!doctorId || !name || !role)
-    return res.status(400).json({ message: "Doctor ID, name and role are required" });
-
-  let doctorName = name.trim();
-  if (!doctorName.toLowerCase().startsWith("dr") && !doctorName.toLowerCase().startsWith("dr.")) {
-    doctorName = "Dr. " + doctorName;
-  }
-
-  const sql = "UPDATE doctors SET name = ?, role = ? WHERE id = ?";
-  db.query(sql, [doctorName, role, doctorId], (err, result) => {
+  db.query("SELECT * FROM doctors", (err, rows) => {
     if (err) return res.status(500).json({ message: "Database error" });
-    if (result.affectedRows === 0)
-      return res.status(404).json({ message: "Doctor not found" });
-    res.json({ message: "Doctor updated successfully" });
+    res.json(rows);
   });
 });
 
-// DELETE DOCTOR
+// ADD doctor
+app.post("/api/doctors", (req, res) => {
+  let { name, role } = req.body;
+  if (!name || !role) return res.status(400).json({ message: "Name and role required" });
+
+  // Prefix Dr. if missing
+  if (!name.toLowerCase().startsWith("dr")) name = "Dr. " + name;
+
+  db.query("INSERT INTO doctors (name, role) VALUES (?, ?)", [name, role], (err, result) => {
+    if (err) {
+      console.error("DB error:", err);
+      return res.status(500).json({ message: "Database error" });
+    }
+
+    // Return the newly created doctor object
+    res.json({ id: result.insertId, name, role });
+  });
+});
+
+
+
+
+// UPDATE doctor
+app.put("/api/doctors", (req, res) => {
+  const { doctorId, name, role } = req.body;
+  if (!doctorId || !name || !role) return res.status(400).json({ message: "Doctor ID, name, role required" });
+
+  let doctorName = name.trim();
+  if (!doctorName.toLowerCase().startsWith("dr")) doctorName = "Dr. " + doctorName;
+
+  db.query("UPDATE doctors SET name=?, role=? WHERE id=?", [doctorName, role, doctorId], (err, result) => {
+    if (err) return res.status(500).json({ message: "Database error" });
+    if (result.affectedRows === 0) return res.status(404).json({ message: "Doctor not found" });
+
+    res.json({ id: doctorId, name: doctorName, role }); // return updated doctor
+  });
+});
+
+// DELETE doctor
 app.delete("/api/doctors/:id", (req, res) => {
   const { id } = req.params;
 
-  // Optional: check if doctor has appointments
-  const checkSql = "SELECT id FROM appointments WHERE doctor_id = ?";
-  db.query(checkSql, [id], (err, results) => {
+  db.query("SELECT id FROM appointments WHERE doctor_id=?", [id], (err, results) => {
     if (err) return res.status(500).json({ message: "Database error" });
+    if (results.length > 0) return res.status(400).json({ message: "Cannot delete doctor with appointments" });
 
-    if (results.length > 0) {
-      return res.status(400).json({ 
-        message: "Cannot delete doctor with existing appointments" 
-      });
-    }
-
-    const deleteSql = "DELETE FROM doctors WHERE id = ?";
-    db.query(deleteSql, [id], (err, result) => {
+    db.query("DELETE FROM doctors WHERE id=?", [id], (err, result) => {
       if (err) return res.status(500).json({ message: "Database error" });
-      if (result.affectedRows === 0)
-        return res.status(404).json({ message: "Doctor not found" });
-      res.json({ message: "Doctor deleted successfully" });
+      if (result.affectedRows === 0) return res.status(404).json({ message: "Doctor not found" });
+      res.json({ message: "Doctor deleted successfully", id });
     });
   });
 });
+
 
 // APPOINTMENTS
 app.get("/api/appointments", (req, res) => {
@@ -175,15 +179,35 @@ app.get("/api/appointments", (req, res) => {
   );
 });
 
+// ------------------ ADD APPOINTMENT ------------------
 app.post("/api/appointments", (req, res) => {
   const { date, time, patient_name, doctor_id } = req.body;
+
+  if (!date || !time || !patient_name || !doctor_id) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
+
+  const cleanDate = date.split("T")[0];
+
   db.query(
     "INSERT INTO appointments (date,time,patient_name,doctor_id) VALUES (?,?,?,?)",
-    [date.split("T")[0], time, patient_name, doctor_id],
-    () => res.json({ message: "Appointment added" })
+    [cleanDate, time, patient_name, doctor_id],
+    (err, result) => {
+      if (err) {
+        console.error("DB error:", err);
+        return res.status(500).json({ message: "Database error" });
+      }
+      // Return the created appointment object with id
+      res.json({
+        id: result.insertId,
+        date: cleanDate,
+        time,
+        patient_name,
+        doctor_id
+      });
+    }
   );
 });
-
 // UPDATE APPOINTMENT
 app.put("/api/appointments/:id", (req, res) => {
   const { id } = req.params;
