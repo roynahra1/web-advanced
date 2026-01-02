@@ -10,16 +10,24 @@ const app = express();
 ====================== */
 app.use(express.json());
 
+
 const allowedOrigins = [
   "http://localhost:3000",
   "https://tubular-nasturtium-304615.netlify.app"
 ];
 
 app.use(cors({
-  origin: "*",
-  methods: ["GET","POST","PUT","DELETE"],
+  origin: function(origin, callback){
+    if (!origin) return callback(null, true); // allow server-to-server requests
+    if (allowedOrigins.indexOf(origin) === -1){
+      return callback(new Error("CORS policy does not allow access from this origin"), false);
+    }
+    return callback(null, true);
+  },
+  methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true
 }));
+
 
 
 
