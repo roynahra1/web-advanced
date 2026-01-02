@@ -152,21 +152,24 @@ app.put("/api/doctors", (req, res) => {
   });
 });
 
-// DELETE doctor
+// DELETE doctor by ID (simple version)
 app.delete("/api/doctors/:id", (req, res) => {
   const { id } = req.params;
 
-  db.query("SELECT id FROM appointments WHERE doctor_id=?", [id], (err, results) => {
-    if (err) return res.status(500).json({ message: "Database error" });
-    if (results.length > 0) return res.status(400).json({ message: "Cannot delete doctor with appointments" });
+  db.query("DELETE FROM doctors WHERE id = ?", [id], (err, result) => {
+    if (err) {
+      console.error("DB error:", err);
+      return res.status(500).json({ message: "Database error" });
+    }
 
-    db.query("DELETE FROM doctors WHERE id=?", [id], (err, result) => {
-      if (err) return res.status(500).json({ message: "Database error" });
-      if (result.affectedRows === 0) return res.status(404).json({ message: "Doctor not found" });
-      res.json({ message: "Doctor deleted successfully", id });
-    });
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Doctor not found" });
+    }
+
+    res.json({ message: "Doctor deleted successfully", id });
   });
 });
+
 
 
 // APPOINTMENTS
