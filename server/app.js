@@ -226,7 +226,7 @@ app.get("/api/appointments", (req, res) => {
   );
 });
 
-// ------------------ ADD APPOINTMENT ------------------
+// ------------------ ADD APPOINTMENT (WITH TIME SLOT CHECKING) ------------------
 app.post("/api/appointments", (req, res) => {
   const { date, time, patient_name, doctor_id } = req.body;
 
@@ -236,39 +236,91 @@ app.post("/api/appointments", (req, res) => {
 
   const cleanDate = date.split("T")[0];
 
-  db.query(
-    "INSERT INTO appointments (date,time,patient_name,doctor_id) VALUES (?,?,?,?)",
-    [cleanDate, time, patient_name, doctor_id],
-    (err, result) => {
-      if (err) {
-        console.error("DB error:", err);
-        return res.status(500).json({ message: "Database error" });
-      }
-      // Return the created appointment object with id
-      res.json({
-        id: result.insertId,
-        date: cleanDate,
-        time,
-        patient_name,
-        doctor_id
+  // Check if time slot is already booked for this doctor
+  const checkSql = `
+    SELECT id FROM appointments 
+    WHERE date = ? AND time = ? AND doctor_id = ?
+  `;
+  
+  db.query(checkSql, [cleanDate, time, doctor_id], (err, results) => {
+    if (err) {
+      console.error("DB error checking slot:", err);
+      return res.status(500).json({ message: "Database error" });
+    }
+    
+    if (results.length > 0) {
+      return res.status(400).json({ 
+        message: "Time slot already booked for this doctor" 
       });
     }
-  );
+
+    // If slot is available, create the appointment
+    db.query(
+      "INSERT INTO appointments (date,time,patient_name,doctor_id) VALUES (?,?,?,?)",
+      [cleanDate, time, patient_name, doctor_id],
+      (err, result) => {
+        if (err) {
+          console.error("DB error creating appointment:", err);
+          return res.status(500).json({ message: "Database error" });
+        }
+        // Return the created appointment object with id
+        res.json({
+          id: result.insertId,
+          date: cleanDate,
+          time,
+          patient_name,
+          doctor_id,
+          message: "Appointment added successfully"
+        });
+      }
+    );
+  });
 });
-// UPDATE APPOINTMENT
+
+// UPDATE APPOINTMENT (WITH TIME SLOT CHECKING)
 app.put("/api/appointments/:id", (req, res) => {
   const { id } = req.params;
   const { date, time, patient_name, doctor_id } = req.body;
-  db.query(
-    "UPDATE appointments SET date=?, time=?, patient_name=?, doctor_id=? WHERE id=?",
-    [date.split("T")[0], time, patient_name, doctor_id, id],
-    (err, result) => {
-      if (err) return res.status(500).json({ message: "Database error" });
-      if (result.affectedRows === 0)
-        return res.status(404).json({ message: "Appointment not found" });
-      res.json({ message: "Appointment updated successfully" });
+  
+  if (!date || !time || !patient_name || !doctor_id) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
+
+  const cleanDate = date.split("T")[0];
+
+  // Check if time slot is already booked for this doctor (excluding current appointment)
+  const checkSql = `
+    SELECT id FROM appointments 
+    WHERE date = ? AND time = ? AND doctor_id = ? AND id != ?
+  `;
+  
+  db.query(checkSql, [cleanDate, time, doctor_id, id], (err, results) => {
+    if (err) {
+      console.error("DB error checking slot:", err);
+      return res.status(500).json({ message: "Database error" });
     }
-  );
+    
+    if (results.length > 0) {
+      return res.status(400).json({ 
+        message: "Time slot already booked for this doctor" 
+      });
+    }
+
+    // If slot is available, update the appointment
+    db.query(
+      "UPDATE appointments SET date=?, time=?, patient_name=?, doctor_id=? WHERE id=?",
+      [cleanDate, time, patient_name, doctor_id, id],
+      (err, result) => {
+        if (err) {
+          console.error("DB error updating appointment:", err);
+          return res.status(500).json({ message: "Database error" });
+        }
+        if (result.affectedRows === 0)
+          return res.status(404).json({ message: "Appointment not found" });
+        res.json({ message: "Appointment updated successfully" });
+      }
+    );
+  });
 });
 
 // DELETE APPOINTMENT
