@@ -1,7 +1,6 @@
-import api from "../api";
-// src/pages/Home.js
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import "../Home.css";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -17,94 +16,199 @@ export default function Home() {
     localStorage.removeItem("authToken");
     localStorage.removeItem("isAuthenticated");
     
-    // Optional: Clear all localStorage (use with caution)
-    // localStorage.clear();
-    
     // Redirect to login page
     navigate("/login");
-    
-    // Or if not using React Router:
-    // window.location.href = "/login";
     
     console.log("Successfully logged out");
   };
 
+  const quickActions = [
+    { id: 1, title: "Book Appointment", icon: "📅", color: "#4CAF50", path: "/appointments" },
+    { id: 2, title: "View Doctors", icon: "👨‍⚕️", color: "#2196F3", path: "/doctors" },
+    { id: 3, title: "Patient Records", icon: "📋", color: "#FF9800", path: "/patients" },
+    { id: 4, title: "Clinic Calendar", icon: "🗓️", color: "#9C27B0", path: "/calendar" },
+  ];
+
+  const stats = [
+    { id: 1, label: "Total Appointments", value: "1,234", change: "+12%" },
+    { id: 2, label: "Active Patients", value: "892", change: "+8%" },
+    { id: 3, label: "Available Doctors", value: "24", change: "+2" },
+    { id: 4, label: "Today's Visits", value: "56", change: "Now" },
+  ];
+
   return (
-    <div style={{
-      textAlign: "center",
-      fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-      padding: "40px",
-      background: "linear-gradient(to right, #f0f4f8, #d9e2ec)",
-      minHeight: "100vh",
-      position: "relative"
-    }}>
-      {/* Logout Button */}
-      <button
-        onClick={handleLogout}
-        style={{
-          position: "absolute",
-          top: "20px",
-          right: "20px",
-          padding: "10px 20px",
-          backgroundColor: "#e74c3c",
-          color: "white",
-          border: "none",
-          borderRadius: "5px",
-          cursor: "pointer",
-          fontSize: "1rem",
-          fontWeight: "600",
-          boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-          transition: "all 0.3s ease"
-        }}
-        onMouseOver={(e) => {
-          e.currentTarget.style.backgroundColor = "#c0392b";
-          e.currentTarget.style.transform = "translateY(-2px)";
-          e.currentTarget.style.boxShadow = "0 6px 8px rgba(0,0,0,0.15)";
-        }}
-        onMouseOut={(e) => {
-          e.currentTarget.style.backgroundColor = "#e74c3c";
-          e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.boxShadow = "0 4px 6px rgba(0,0,0,0.1)";
-        }}
-      >
-        Logout
-      </button>
+    <div className="home-container">
+      {/* Header Section */}
+      <header className="home-header">
+        <div className="header-content">
+          <h1 className="welcome-title">
+            <span className="welcome-text">Welcome to</span>
+            <span className="clinic-name">MediCare Clinic</span>
+          </h1>
+          <p className="welcome-subtitle">
+            Excellence in Healthcare, Compassion in Service
+          </p>
+        </div>
+        
+        <button onClick={handleLogout} className="logout-btn">
+          <span className="logout-icon">🚪</span>
+          <span>Logout</span>
+        </button>
+      </header>
 
-      {/* Rest of your content remains the same */}
-      <h1 style={{ 
-        color: "#2c3e50", 
-        fontSize: "2.5rem", 
-        marginBottom: "20px",
-        textShadow: "1px 1px 2px rgba(0,0,0,0.1)",
-        marginTop: "20px"
-      }}>
-        Welcome to Our Clinic
-      </h1>
+      {/* Hero Section */}
+      <section className="hero-section">
+        <div className="hero-content">
+          <div className="hero-text">
+            <h2>Your Health, Our Priority</h2>
+            <p>
+              Experience world-class healthcare services with our team of 
+              certified professionals. We combine advanced technology with 
+              compassionate care for your well-being.
+            </p>
+            <div className="hero-stats">
+              {stats.map((stat) => (
+                <div key={stat.id} className="stat-card">
+                  <div className="stat-value">{stat.value}</div>
+                  <div className="stat-label">{stat.label}</div>
+                  <div className="stat-change positive">{stat.change}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="hero-image">
+            <img
+              src="https://images.unsplash.com/photo-1551601651-2a8555f1a136?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+              alt="Modern Clinic Interior"
+            />
+          </div>
+        </div>
+      </section>
 
-      <img
-        src="https://images.unsplash.com/photo-1506765515384-028b60a970aa"
-        alt="clinic"
-        style={{
-          width: "400px",
-          borderRadius: "20px",
-          boxShadow: "0 8px 20px rgba(0,0,0,0.3)",
-          marginBottom: "20px",
-          transition: "transform 0.3s",
-        }}
-        onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.05)"}
-        onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
-      />
+      {/* Quick Actions Section */}
+      <section className="quick-actions-section">
+        <h2 className="section-title">Quick Access</h2>
+        <p className="section-subtitle">Get started with these quick actions</p>
+        
+        <div className="quick-actions-grid">
+          {quickActions.map((action) => (
+            <button 
+              key={action.id} 
+              className="action-card"
+              onClick={() => navigate(action.path)}
+              style={{ '--card-color': action.color }}
+            >
+              <div className="action-icon" style={{ backgroundColor: `${action.color}20` }}>
+                <span className="icon" style={{ color: action.color }}>
+                  {action.icon}
+                </span>
+              </div>
+              <div className="action-content">
+                <h3>{action.title}</h3>
+                <p>Click to access</p>
+              </div>
+              <div className="action-arrow">→</div>
+            </button>
+          ))}
+        </div>
+      </section>
 
-      <p style={{ 
-        maxWidth: "600px", 
-        margin: "0 auto", 
-        color: "#555", 
-        lineHeight: "1.6", 
-        fontSize: "1.1rem"
-      }}>
-        We provide top-quality healthcare services with a compassionate touch.
-        Explore our website to learn more about our doctors, services, and how to book appointments easily.
-      </p>
+      {/* Features Section */}
+      <section className="features-section">
+        <h2 className="section-title">Why Choose Us</h2>
+        <p className="section-subtitle">We're committed to providing exceptional healthcare</p>
+        
+        <div className="features-grid">
+          <div className="feature-card">
+            <div className="feature-icon">🏆</div>
+            <h3>Expert Doctors</h3>
+            <p>Board-certified physicians with extensive experience in their fields.</p>
+          </div>
+          
+          <div className="feature-card">
+            <div className="feature-icon">💻</div>
+            <h3>Digital Records</h3>
+            <p>Secure, accessible electronic health records for seamless care.</p>
+          </div>
+          
+          <div className="feature-card">
+            <div className="feature-icon">⏰</div>
+            <h3>24/7 Support</h3>
+            <p>Round-the-clock emergency services and patient support.</p>
+          </div>
+          
+          <div className="feature-card">
+            <div className="feature-icon">❤️</div>
+            <h3>Patient Care</h3>
+            <p>Personalized treatment plans tailored to individual needs.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Upcoming Appointments Section */}
+      <section className="appointments-section">
+        <div className="section-header">
+          <div>
+            <h2 className="section-title">Today's Schedule</h2>
+            <p className="section-subtitle">Upcoming appointments for today</p>
+          </div>
+          <button className="btn-view-all" onClick={() => navigate("/appointments")}>
+            View All →
+          </button>
+        </div>
+        
+        <div className="appointments-list">
+          <div className="appointment-item">
+            <div className="appointment-time">09:00 AM</div>
+            <div className="appointment-details">
+              <div className="patient-name">John Smith</div>
+              <div className="appointment-type">General Checkup</div>
+            </div>
+            <div className="doctor-info">
+              <span className="doctor-badge">Dr. Sarah Wilson</span>
+            </div>
+          </div>
+          
+          <div className="appointment-item">
+            <div className="appointment-time">11:30 AM</div>
+            <div className="appointment-details">
+              <div className="patient-name">Emma Johnson</div>
+              <div className="appointment-type">Dental Consultation</div>
+            </div>
+            <div className="doctor-info">
+              <span className="doctor-badge">Dr. Michael Chen</span>
+            </div>
+          </div>
+          
+          <div className="appointment-item">
+            <div className="appointment-time">02:15 PM</div>
+            <div className="appointment-details">
+              <div className="patient-name">Robert Davis</div>
+              <div className="appointment-type">Cardiology Follow-up</div>
+            </div>
+            <div className="doctor-info">
+              <span className="doctor-badge">Dr. Lisa Rodriguez</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer Section */}
+      <footer className="home-footer">
+        <div className="footer-content">
+          <div className="footer-logo">
+            <span className="logo-icon">🏥</span>
+            <span className="logo-text">MediCare Clinic</span>
+          </div>
+          <p className="footer-tagline">
+            Caring for you, always. © {new Date().getFullYear()}
+          </p>
+          <div className="footer-contact">
+            <span>📞 (123) 456-7890</span>
+            <span>📧 contact@medicareclinic.com</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../api";
+import "../Doctor.css";
 
 export default function Doctors() {
   const [doctors, setDoctors] = useState([]);
@@ -9,6 +10,7 @@ export default function Doctors() {
   const [role, setRole] = useState("General");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [doctorId, setDoctorId] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("All");
@@ -23,12 +25,20 @@ export default function Doctors() {
     "Orthopedic",
   ];
 
-  // Load doctors on mount
+  const specialtyColors = {
+    "General": "#4CAF50",
+    "Dentist": "#2196F3",
+    "Cardiologist": "#F44336",
+    "Pediatrician": "#FF9800",
+    "Dermatologist": "#9C27B0",
+    "Neurologist": "#00BCD4",
+    "Orthopedic": "#795548",
+  };
+
   useEffect(() => {
     getDoctors();
   }, []);
 
-  // Update filteredDoctors whenever doctors/search/filter changes
   useEffect(() => {
     filterDoctors();
   }, [doctors, searchTerm, filterRole]);
@@ -67,6 +77,7 @@ export default function Doctors() {
     setName("");
     setRole("General");
     setError("");
+    setSuccess("");
     setShowAddForm(true);
   };
 
@@ -84,7 +95,7 @@ export default function Doctors() {
     return n;
   };
 
-  const save = () => {
+  const save = async () => {
     if (!name.trim()) {
       setError("Please enter doctor name");
       return;
@@ -94,68 +105,41 @@ export default function Doctors() {
       return;
     }
 
-    doctorId === 0 ? addDoctor() : updateDoctor();
-  };
-
-  // ------------------ ADD DOCTOR ------------------
-  const addDoctor = async () => {
     setLoading(true);
     try {
-      const newDoctor = { name: formatDoctorName(name), role };
-      const createdDoctor = await api.post("/doctors", newDoctor); // returns {id, name, role}
-
-      // Update state immediately
-      setDoctors((prev) => [...prev, createdDoctor]);
-
+      if (doctorId === 0) {
+        const newDoctor = { name: formatDoctorName(name), role };
+        const createdDoctor = await api.post("/doctors", newDoctor);
+        setDoctors((prev) => [...prev, createdDoctor]);
+        setSuccess("Doctor added successfully!");
+      } else {
+        const updatedDoctor = { doctorId, name: formatDoctorName(name), role };
+        await api.put("/doctors", updatedDoctor);
+        setDoctors((prev) =>
+          prev.map((d) =>
+            d.id === doctorId ? { ...d, name: updatedDoctor.name, role } : d
+          )
+        );
+        setSuccess("Doctor updated successfully!");
+      }
+      
+      setTimeout(() => setSuccess(""), 3000);
       cancelAdd();
     } catch (err) {
-      console.error("Error adding doctor:", err);
-      setError(
-        "Failed to add doctor. Make sure your backend is running and endpoint is correct."
-      );
+      console.error("Error saving doctor:", err);
+      setError(err.response?.data?.message || "Failed to save doctor");
     } finally {
       setLoading(false);
     }
   };
 
-  // ------------------ EDIT DOCTOR ------------------
-  const editDoctor = (doctor) => {
-    setShowAddForm(true);
-    setDoctorId(doctor.id);
-    setRole(doctor.role);
-    setName(doctor.name.replace(/^dr\.?\s*/i, ""));
-    setError("");
-  };
-
-  // ------------------ UPDATE DOCTOR ------------------
-  const updateDoctor = async () => {
-    setLoading(true);
-    try {
-      const updatedDoctor = { doctorId, name: formatDoctorName(name), role };
-      await api.put("/doctors", updatedDoctor);
-
-      // Update local state immediately
-      setDoctors((prev) =>
-        prev.map((d) =>
-          d.id === doctorId ? { ...d, name: updatedDoctor.name, role } : d
-        )
-      );
-
-      cancelAdd();
-    } catch (err) {
-      console.error("Error updating doctor:", err);
-      setError("Failed to update doctor.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ------------------ DELETE DOCTOR ------------------
   const deleteDoctor = async (doctor) => {
-    if (!window.confirm("Delete this doctor?")) return;
+    if (!window.confirm(`Are you sure you want to delete ${doctor.name}?`)) return;
     try {
       await api.delete(`/doctors/${doctor.id}`);
       setDoctors((prev) => prev.filter((d) => d.id !== doctor.id));
+      setSuccess("Doctor deleted successfully!");
+      setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
       console.error("Error deleting doctor:", err);
       setError("Failed to delete doctor.");
@@ -163,86 +147,173 @@ export default function Doctors() {
   };
 
   return (
-    <div>
-      <h1 align="center">Doctors Management</h1>
-
-      {error && <div style={{ color: "red", textAlign: "center" }}>{error}</div>}
-
-      <div style={{ textAlign: "center", marginBottom: 20 }}>
-        <button onClick={displayAddForm}>Add New Doctor</button>
+    <div className="doctors-container">
+      <div className="doctors-header">
+        <h1>Doctors Management</h1>
+        <p className="subtitle">Manage healthcare professionals and specialties</p>
       </div>
 
-      <div style={{ textAlign: "center", marginBottom: 10 }}>
-        <input
-          placeholder="Search by name or specialty..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-        <select
-          value={filterRole}
-          onChange={(e) => setFilterRole(e.target.value)}
-        >
-          <option value="All">All</option>
-          {roles.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-      </div>
+      {error && (
+        <div className="alert alert-error">
+          <span className="alert-icon">⚠️</span>
+          {error}
+        </div>
+      )}
 
-      <table border="1" width="80%" align="center">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Specialty</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredDoctors.length === 0 ? (
-            <tr>
-              <td colSpan="4" align="center">
-                {doctors.length === 0
-                  ? "No doctors found. Add your first doctor!"
-                  : "No doctors match your criteria."}
-              </td>
-            </tr>
-          ) : (
-            filteredDoctors.map((d) => (
-              <tr key={d.id}>
-                <td>{d.id}</td>
-                <td>{d.name}</td>
-                <td>{d.role}</td>
-                <td>
-                  <button onClick={() => editDoctor(d)}>Edit</button>
-                  <button onClick={() => deleteDoctor(d)}>Delete</button>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+      {success && (
+        <div className="alert alert-success">
+          <span className="alert-icon">✅</span>
+          {success}
+        </div>
+      )}
 
-      {showAddForm && (
-        <div style={{ marginTop: 30, textAlign: "center" }}>
-          <h3>{doctorId === 0 ? "Add Doctor" : "Edit Doctor"}</h3>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Doctor name"
-          />
-          <select value={role} onChange={(e) => setRole(e.target.value)}>
+      <div className="controls-section">
+        <div className="search-container">
+          <div className="search-wrapper">
+            <span className="search-icon">🔍</span>
+            <input
+              placeholder="Search by name or specialty..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input"
+            />
+          </div>
+          
+          <select
+            value={filterRole}
+            onChange={(e) => setFilterRole(e.target.value)}
+            className="role-filter"
+          >
+            <option value="All">All Specialties</option>
             {roles.map((r) => (
               <option key={r} value={r}>
                 {r}
               </option>
             ))}
           </select>
-          <br />
-          <button onClick={cancelAdd}>Cancel</button>
-          <button onClick={save}>{loading ? "Saving..." : "Save"}</button>
+        </div>
+
+        <button onClick={displayAddForm} className="btn-primary">
+          <span className="btn-icon">+</span> Add New Doctor
+        </button>
+      </div>
+
+      <div className="doctors-grid">
+        {filteredDoctors.length === 0 ? (
+          <div className="no-doctors">
+            <div className="no-doctors-icon">👨‍⚕️</div>
+            <h3>No Doctors Found</h3>
+            <p>{doctors.length === 0 
+              ? "Start by adding your first doctor!" 
+              : "Try adjusting your search criteria"}
+            </p>
+          </div>
+        ) : (
+          filteredDoctors.map((d) => (
+            <div key={d.id} className="doctor-card">
+              <div className="doctor-card-header">
+                <div className="doctor-avatar">
+                  {d.name.charAt(0)}
+                </div>
+                <div className="doctor-info">
+                  <h3 className="doctor-name">{d.name}</h3>
+                  <span 
+                    className="specialty-tag"
+                    style={{ backgroundColor: `${specialtyColors[d.role]}20`, color: specialtyColors[d.role] }}
+                  >
+                    {d.role}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="doctor-card-body">
+                <div className="doctor-detail">
+                  <span className="detail-label">ID</span>
+                  <span className="detail-value">#{d.id}</span>
+                </div>
+              </div>
+              
+              <div className="doctor-card-actions">
+                <button 
+                  onClick={() => {
+                    setShowAddForm(true);
+                    setDoctorId(d.id);
+                    setName(d.name.replace(/^dr\.?\s*/i, ""));
+                    setRole(d.role);
+                  }} 
+                  className="btn-edit"
+                >
+                  ✏️ Edit
+                </button>
+                <button 
+                  onClick={() => deleteDoctor(d)} 
+                  className="btn-delete"
+                >
+                  🗑️ Delete
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {showAddForm && (
+        <div className="modal-overlay">
+          <div className="doctor-form-modal">
+            <div className="modal-header">
+              <h3>{doctorId === 0 ? "Add New Doctor" : "Edit Doctor"}</h3>
+              <button onClick={cancelAdd} className="close-modal">×</button>
+            </div>
+            
+            <div className="form-content">
+              <div className="form-group">
+                <label>Doctor Name</label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter doctor name"
+                  className="form-input"
+                />
+                <small className="form-hint">We'll add "Dr." prefix automatically</small>
+              </div>
+              
+              <div className="form-group">
+                <label>Specialty</label>
+                <div className="specialty-grid">
+                  {roles.map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      className={`specialty-option ${role === r ? 'selected' : ''}`}
+                      onClick={() => setRole(r)}
+                      style={{
+                        backgroundColor: role === r ? specialtyColors[r] : `${specialtyColors[r]}20`,
+                        color: role === r ? 'white' : specialtyColors[r]
+                      }}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            <div className="form-actions">
+              <button onClick={cancelAdd} className="btn-secondary">
+                Cancel
+              </button>
+              <button onClick={save} className="btn-primary" disabled={loading}>
+                {loading ? (
+                  <>
+                    <span className="loading-spinner"></span>
+                    {doctorId === 0 ? "Adding..." : "Updating..."}
+                  </>
+                ) : (
+                  doctorId === 0 ? "Add Doctor" : "Update Doctor"
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
