@@ -115,7 +115,7 @@ app.get("/api/doctors", (req, res) => {
 });
 
 // ADD doctor - with fake email and password
-app.post("/doctors", (req, res) => {
+app.post("/api/doctors", (req, res) => {
   let { name, role } = req.body;
   console.log("Creating doctor with:", { name, role });
   
