@@ -114,22 +114,66 @@ app.get("/api/doctors", (req, res) => {
   });
 });
 
-// ADD doctor
-app.post("/api/doctors", (req, res) => {
+// ADD doctor - with fake email and password
+app.post("/doctors", (req, res) => {
   let { name, role } = req.body;
+  console.log("Creating doctor with:", { name, role });
+  
   if (!name || !role) return res.status(400).json({ message: "Name and role required" });
 
   // Prefix Dr. if missing
   if (!name.toLowerCase().startsWith("dr")) name = "Dr. " + name;
 
-  db.query("INSERT INTO doctors (name, role) VALUES (?, ?)", [name, role], (err, result) => {
-    if (err) {
-      console.error("DB error:", err);
-      return res.status(500).json({ message: "Database error" });
+  // Generate fake email (lowercase, remove spaces and special chars)
+  const cleanName = name
+    .toLowerCase()
+    .replace(/^dr\.?\s*/i, '') // Remove Dr. prefix
+    .replace(/[^a-z0-9]/g, '') // Remove non-alphanumeric
+    .substring(0, 20); // Limit length
+  
+  const fakeEmail = `${cleanName}@hospital.com`;
+  const fakePassword = "doctor123"; // Default password
+  
+  // Hash the fake password
+  bcrypt.hash(fakePassword, 10, (hashErr, hashedPassword) => {
+    if (hashErr) {
+      console.error("Password hashing error:", hashErr);
+      return res.status(500).json({ message: "Server error" });
     }
 
-    // Return the newly created doctor object
-    res.json({ id: result.insertId, name, role });
+    db.query(
+      "INSERT INTO doctors (name, role, email, password) VALUES (?, ?, ?, ?)", 
+      [name, role, fakeEmail, hashedPassword], 
+      (err, result) => {
+        if (err) {
+          console.error("DB INSERT error:", {
+            code: err.code,
+            message: err.message,
+            sqlMessage: err.sqlMessage
+          });
+          return res.status(500).json({ 
+            message: "Database error",
+            details: err.sqlMessage 
+          });
+        }
+
+        console.log("Doctor created successfully:", {
+          id: result.insertId,
+          name: name,
+          role: role,
+          email: fakeEmail
+        });
+        
+        // Return the newly created doctor object (without password)
+        res.json({ 
+          id: result.insertId, 
+          name, 
+          role,
+          email: fakeEmail,
+          message: "Doctor added successfully" 
+        });
+      }
+    );
   });
 });
 
